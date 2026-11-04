@@ -4,7 +4,7 @@ A URL shortener built as a hands-on system design learning project. The goal is 
 
 ## Status
 
-Phase 0 — documentation complete, review pending. Implementation starts at Phase 1. No application code yet.
+Local v1 is running: create, redirect, cache-aside, rate limits, analytics worker, and stats. Deployment artifacts (Dockerfile, CI/CD, Litestream) are still Phase 4 work.
 
 ## Stack
 
@@ -46,13 +46,33 @@ Phase 0 — documentation complete, review pending. Implementation starts at Pha
 
 ## Local development
 
-Local setup instructions will be added in Phase 1. The intended flow is:
+Prerequisites: Python 3.12+, `uv`, and Redis (Homebrew or Docker).
 
 ```bash
-docker compose up -d          # API, SQLite volume, Redis, Caddy (local)
-uv run alembic upgrade head
-uv run pytest
+make setup       # install deps, create .env, migrate SQLite
+make redis-up    # brew services start redis (falls back to Docker Compose)
+make run         # http://localhost:8000
 ```
+
+In a second terminal:
+
+```bash
+make smoke
+# or create a link manually:
+curl -X POST http://localhost:8000/api/v1/links \
+  -H 'Authorization: Bearer dev-api-key' \
+  -H 'Content-Type: application/json' \
+  -d '{"long_url":"https://example.com"}'
+```
+
+Local resources:
+
+- SQLite: `data/app.db` (WAL mode)
+- Redis: `localhost:6379`
+- API key: `dev-api-key` from `.env`
+- Analytics: click events flow through the `events:clicks` Redis Stream
+
+Useful commands: `make test`, `make lint`, `make fmt`, `make db-reset`.
 
 ## Deployment summary
 

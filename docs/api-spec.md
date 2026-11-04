@@ -142,9 +142,12 @@ Responses include `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset`; `
 
 | HTTP | Code | Meaning |
 | --- | --- | --- |
+| 400 | `invalid_request` | Body/query validation failed |
 | 400 | `invalid_url` | Malformed or unsupported URL |
 | 400 | `invalid_alias` | Alias fails syntax rules |
 | 400 | `invalid_expiry` | Expiry is not in the future |
+| 400 | `invalid_range` | Stats range is inverted or too large |
+| 400 | `invalid_cursor` | Pagination cursor is malformed |
 | 401 | `unauthorized` | Missing/invalid API key |
 | 403 | `forbidden` | Not the owner |
 | 404 | `not_found` | Code does not exist |

@@ -66,14 +66,14 @@ Exit: no unresolved blocking questions; Phase 1 can start.
 
 Goal: the thinnest end-to-end slice, deployed to staging.
 
-- [ ] `uv init`; add FastAPI, Uvicorn, SQLAlchemy, Alembic, pydantic-settings, Redis client
-- [ ] Config via env vars; `.env.example`; no secrets in git
-- [ ] App factory + lifespan; `/healthz` (liveness) and `/readyz` (DB + Redis)
-- [ ] SQLAlchemy engine with SQLite pragmas; Alembic baseline migration
-- [ ] `POST /api/v1/links` with URL validation and random base62 code
-- [ ] `GET /{code}` redirect with `302`, expiry check, and `no-store`
-- [ ] Structured JSON logging with request IDs
-- [ ] Unit tests for base62/validation; integration test for create → redirect
+- [x] `uv init`; add FastAPI, Uvicorn, SQLAlchemy, Alembic, pydantic-settings, Redis client
+- [x] Config via env vars; `.env.example`; no secrets in git
+- [x] App factory + lifespan; `/healthz` (liveness) and `/readyz` (DB + Redis)
+- [x] SQLAlchemy engine with SQLite pragmas; Alembic baseline migration
+- [x] `POST /api/v1/links` with URL validation and random base62 code
+- [x] `GET /{code}` redirect with `302`, expiry check, and `no-store`
+- [x] Structured logging with request IDs
+- [x] Unit tests for base62/validation; integration test for create → redirect
 - [ ] CI: `ruff format --check`, `ruff check`, `mypy`, `pytest`, migration check, Docker build
 - [ ] Dockerfile (multi-stage, non-root) + local `compose.yml`
 - [ ] Deploy to a staging host early with a minimal Compose file (harden in Phase 4)
@@ -83,21 +83,21 @@ Exit: a newcomer can create and follow a link locally with one command; staging 
 
 ## Phase 2 — Product completeness
 
-- [ ] Custom aliases with reserved-word/offensive blocklist
-- [ ] `expires_at` validation and `410 Gone` behavior
-- [ ] `DELETE` (soft delete) and cache invalidation
-- [ ] `GET` metadata + basic total clicks
-- [ ] Rate limiting (Redis token bucket) with standard headers
-- [ ] API key auth (hashed keys, pepper)
-- [ ] Error taxonomy matching `api-spec.md`
+- [x] Custom aliases with reserved-word/offensive blocklist
+- [x] `expires_at` validation and `410 Gone` behavior
+- [x] `DELETE` (soft delete) and cache invalidation
+- [x] `GET` metadata + basic total clicks
+- [x] Rate limiting (Redis fixed-window counters) with standard headers
+- [ ] API key auth (hashed keys, pepper) — local v1 uses an env key
+- [x] Error taxonomy matching `api-spec.md`
 - [ ] Acceptance test suite covering every FR
-- [ ] Abuse guardrails: scheme allowlist, private-IP rejection, domain blocklist hook
+- [ ] Abuse guardrails: private-IP rejection, domain blocklist hook (scheme allowlist done)
 
 Exit: all Must/Should requirements pass automated acceptance tests in CI.
 
 ## Phase 3 — Read performance
 
-- [ ] Redis cache-aside with jitter and negative caching
+- [x] Redis cache-aside with jitter and negative caching
 - [ ] Single-flight cache fill; stampede test
 - [ ] Metrics: hit ratio, SQLite reads, p50/p99, error rate
 - [ ] k6 scenario: 200 RPS redirects for 15 minutes, mixed 100:1
@@ -126,10 +126,10 @@ Exit: staging deploy, restore drill, and rollback drill all pass; RPO <10s measu
 
 ## Phase 5 — Analytics pipeline
 
-- [ ] Publish click events to a bounded Redis Stream from the redirect path (non-blocking)
-- [ ] Worker consumes in batches; inserts raw `clicks` and updates `link_daily_stats`
-- [ ] Unique visitors via HyperLogLog
-- [ ] `GET /stats` backed by rollups, not raw scans
+- [x] Publish click events to a bounded Redis Stream from the redirect path (non-blocking)
+- [x] Worker consumes in batches; inserts raw `clicks` and updates `link_daily_stats`
+- [x] Unique visitors via HyperLogLog
+- [x] `GET /stats` backed by rollups, not raw scans
 - [ ] Cleanup job: expired links, raw clicks >7 days, incremental vacuum
 - [ ] Replay/backfill tool; idempotent aggregation
 - [ ] Load test analytics at 10× Tier 1 click volume

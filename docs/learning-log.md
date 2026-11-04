@@ -81,3 +81,23 @@ One entry per phase or significant decision. Keep it short and numeric.
 **What surprised me:** The deployment plan forces decisions (backup format, secret handling, rollback) that the application design alone does not.
 
 **Next question:** Is blue-green with two API containers sharing SQLite worth the complexity, or is a 5-second maintenance window acceptable?
+
+## 004 — 2026-11-04 — Phase 1: Local full-stack walking skeleton
+
+**Question:** Does the documented Tier 1 design work end to end locally with real SQLite and Redis?
+
+**Context:** Local macOS setup: Python 3.12, SQLite 3.50, Redis 8.10 via Homebrew. No Docker daemon at the time.
+
+**Options considered:**
+
+- Run everything in Docker Compose: portable, but requires the daemon.
+- Run FastAPI natively + Redis via Homebrew + SQLite file: fastest local loop.
+- Use fakeredis for everything: good for tests, not a real integration check.
+
+**Decision:** Native app, real local Redis, SQLite file, and fakeredis only in unit/integration tests. Smoke script exercises the real stack.
+
+**Measurement:** 17 tests pass. Smoke run: create 19.9ms, cold redirect 7.6ms, stats 6.2ms. The worker rolled up the click and HLL unique count within the same second; stats showed `total_clicks=1`, `unique_visitors=1`.
+
+**What surprised me:** The Redis Stream + worker path was not visible in the redirect latency, and the first stats request already had data.
+
+**Next question:** At 200 RPS, what do cache hit ratio, p99, and `SQLITE_BUSY` count look like?
