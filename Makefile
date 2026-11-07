@@ -1,4 +1,4 @@
-.PHONY: setup redis-up redis-down db-init db-reset run test lint fmt smoke clean
+.PHONY: setup redis-up redis-down db-init db-reset run run-load load test lint fmt smoke clean
 
 setup:
 	uv sync
@@ -29,6 +29,12 @@ db-reset:
 
 run:
 	uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+
+run-load:
+	RATE_LIMIT_REDIRECT_PER_MINUTE=1000000 uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
+
+load:
+	bash scripts/load-test.sh
 
 test:
 	uv run pytest

@@ -101,3 +101,28 @@ One entry per phase or significant decision. Keep it short and numeric.
 **What surprised me:** The Redis Stream + worker path was not visible in the redirect latency, and the first stats request already had data.
 
 **Next question:** At 200 RPS, what do cache hit ratio, p99, and `SQLITE_BUSY` count look like?
+
+## 005 — 2026-11-06 — Phase 3: First 200 RPS redirect baseline
+
+**Question:** What is the warm-cache redirect limit on the local Tier 1 stack, and what breaks first?
+
+**Context:** One Uvicorn worker, local SQLite WAL, local Redis, k6 `constant-arrival-rate` at 200 RPS for 60s, all traffic from one IP.
+
+**Options considered:**
+
+- Run against the default rate limit: measures the abuse control, not throughput.
+- Raise only `RATE_LIMIT_REDIRECT_PER_MINUTE` for the benchmark: isolates redirect performance.
+- Randomize `X-Forwarded-For`: would bypass the limiter but weakens the test.
+
+**Decision:** Run both. First with defaults, then with `make run-load` and the redirect limiter raised to 1,000,000/minute.
+
+**Measurement:**
+
+- Default 600/minute per IP: 12,000 requests, 90% returned `429`; only 1,199 succeeded. This confirmed the limiter is active.
+- Raised limiter: 12,001 requests, 200.16 RPS, 0 errors, p50 2.49ms, p95 3.55ms, p99 9.84ms, max 41.97ms.
+- Analytics: 13,202 clicks rolled up, `unique_visitors=1`, no `500`s, no `SQLITE_BUSY`.
+- Redis stats: 102,774 keyspace hits, 32 misses; these mix rate-limit and cache keys, so they are not a clean cache-hit ratio.
+
+**What surprised me:** The rate limiter is the first bottleneck for a single-IP load test, not SQLite or Redis. The redirect path stayed under 10ms p99 once that was out of the way.
+
+**Next question:** What does p99 look like with a cold cache and with Redis unavailable, and how do we measure cache hit ratio cleanly?

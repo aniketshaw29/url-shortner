@@ -30,6 +30,18 @@ def test_create_and_redirect(client: TestClient, auth_headers: dict[str, str]) -
     assert redirect_response.headers["cache-control"] == "no-store"
 
 
+def test_redirect_rate_limit_key_hashes_ip(
+    client: TestClient, application, auth_headers: dict[str, str]
+) -> None:
+    created = _create(client, auth_headers).json()
+    client.get(f"/{created['code']}", follow_redirects=False)
+
+    keys = application.state.redis.keys("ratelimit:redirect:*")
+    assert keys
+    assert all("testclient" not in key for key in keys)
+    assert all("127.0.0.1" not in key for key in keys)
+
+
 def test_create_requires_api_key(client: TestClient) -> None:
     response = client.post("/api/v1/links", json={"long_url": "https://example.com/a/long/path"})
     assert response.status_code == 401
@@ -144,6 +156,23 @@ def test_rate_limit(settings) -> None:
         second = _create(client, headers)
 
     assert first.status_code == 201
+    assert second.status_code == 429
+    assert second.json()["error"]["code"] == "rate_limited"
+    assert "Retry-After" in second.headers
+
+
+def test_redirect_rate_limit(settings, auth_headers: dict[str, str]) -> None:
+    limited = settings.model_copy(update={"rate_limit_redirect_per_minute": 1})
+    app = create_app(limited)
+    Base.metadata.create_all(app.state.engine)
+
+    with TestClient(app) as client:
+        app.state.redis = fakeredis.FakeRedis(decode_responses=True)
+        code = _create(client, auth_headers).json()["code"]
+        first = client.get(f"/{code}", follow_redirects=False)
+        second = client.get(f"/{code}", follow_redirects=False)
+
+    assert first.status_code == 302
     assert second.status_code == 429
     assert second.json()["error"]["code"] == "rate_limited"
     assert "Retry-After" in second.headers

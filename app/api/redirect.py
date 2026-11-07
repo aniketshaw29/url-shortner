@@ -31,10 +31,11 @@ def redirect_to_url(
     settings = request.app.state.settings
     redis_client = request.app.state.redis
     client_ip = get_client_ip(request)
+    ip_hash = hash_ip(client_ip, settings.ip_hash_salt)
 
     rate = check_rate_limit(
         redis_client,
-        f"ratelimit:redirect:{client_ip}",
+        f"ratelimit:redirect:{ip_hash.hex()}",
         settings.rate_limit_redirect_per_minute,
     )
     if not rate.allowed:
@@ -83,7 +84,7 @@ def redirect_to_url(
         settings.analytics_stream,
         link_id,
         utc_now_ts(),
-        hash_ip(client_ip, settings.ip_hash_salt),
+        ip_hash,
         request.headers.get("user-agent"),
         _referrer(request),
     )

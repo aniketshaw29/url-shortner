@@ -74,6 +74,15 @@ Local resources:
 
 Useful commands: `make test`, `make lint`, `make fmt`, `make db-reset`.
 
+For a 200 RPS redirect baseline, start the API with the redirect limiter raised, then run k6 in another terminal:
+
+```bash
+make run-load
+make load
+```
+
+`make load` requires `k6` (`brew install k6`). With the default 600 redirects/minute per IP, a single-IP 200 RPS run will intentionally return `429`.
+
 ## Deployment summary
 
 One 2 vCPU / 4 GB VPS running Docker Compose:

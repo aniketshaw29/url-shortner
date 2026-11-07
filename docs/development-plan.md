@@ -100,9 +100,10 @@ Exit: all Must/Should requirements pass automated acceptance tests in CI.
 - [x] Redis cache-aside with jitter and negative caching
 - [ ] Single-flight cache fill; stampede test
 - [ ] Metrics: hit ratio, SQLite reads, p50/p99, error rate
-- [ ] k6 scenario: 200 RPS redirects for 15 minutes, mixed 100:1
-- [ ] Cold-cache and warm-cache baselines recorded
-- [ ] Before/after numbers in the learning log
+- [x] k6 warm-cache smoke: 200 RPS × 60s, p99 9.84ms, 0 errors
+- [ ] k6 soak: 200 RPS × 15 minutes, mixed 100:1
+- [ ] Cold-cache baseline recorded
+- [x] Before/after numbers in the learning log
 
 Exit: p99 <100ms at 200 RPS; cache hit ratio >95%; no `SQLITE_BUSY` errors under load.
 

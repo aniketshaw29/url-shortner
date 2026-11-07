@@ -164,9 +164,9 @@ CREATE TABLE link_referrer_daily_stats (
 
 | Key | Value | TTL |
 | --- | --- | --- |
-| `link:{code}` | JSON `{long_url, status, expires_at}` | 1h + jitter |
+| `link:{code}` | JSON `{link_id, long_url, status, expires_at}` | 1h + jitter |
 | `link:miss:{code}` | `1` | 30–60s |
-| `ratelimit:{scope}:{id}` | counter | window |
+| `ratelimit:{scope}:{id}` | counter; `id` is a hashed API key or salted IP | window |
 | `events:clicks` | Redis Stream of click events | trimmed by length |
 
 Redis is disposable. Disable persistence (`--save "" --appendonly no`); a restart only causes a cold cache.

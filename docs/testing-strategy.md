@@ -25,7 +25,7 @@
 - URL validation: schemes, length, credentials, unicode/punycode, private IPs.
 - Alias rules: length, charset, reserved words, case folding.
 - Expiry boundary: `expires_at == now` is expired.
-- Rate-limit token bucket math and window reset.
+- Rate-limit fixed-window math and window reset.
 
 ### Integration (SQLite-specific)
 

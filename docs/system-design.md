@@ -140,7 +140,7 @@ Sharding notes (Tier 2 exercise):
 - Only `http`/`https`; reject private IPs for any URL-preview feature (SSRF).
 - Domain blocklist for phishing/malware; asynchronous scan; disable on match.
 - Salted IP hashes only; no raw IPs in logs or storage.
-- Per-API-key and per-IP rate limits at the app layer (Redis token bucket).
+- Per-API-key and per-IP rate limits at the app layer (Redis fixed-window counters).
 - Reserved aliases: `api`, `admin`, `health`, `healthz`, `readyz`, `static`, `assets`.
 - Caddy adds HSTS and security headers; containers run non-root.
 
