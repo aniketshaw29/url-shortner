@@ -12,6 +12,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.models import Click, LinkDailyStat, LinkReferrerDailyStat
+from app.redis_log import log_redis_error
 from app.timeutils import day_string
 
 logger = logging.getLogger(__name__)
@@ -45,8 +46,8 @@ def publish_click(
             maxlen=100_000,
             approximate=True,
         )
-    except RedisError:
-        logger.warning("failed to publish click event", exc_info=True)
+    except RedisError as exc:
+        log_redis_error("failed to publish click event", exc)
 
 
 class AnalyticsWorker:
@@ -81,8 +82,8 @@ class AnalyticsWorker:
             try:
                 self._ensure_group()
                 break
-            except RedisError:
-                logger.warning("analytics group setup failed; retrying", exc_info=True)
+            except RedisError as exc:
+                log_redis_error("analytics group setup failed; retrying", exc)
                 time.sleep(1)
 
         while not self._stop.is_set():
@@ -97,8 +98,8 @@ class AnalyticsWorker:
                         block=1000,
                     ),
                 )
-            except RedisError:
-                logger.warning("analytics stream read failed", exc_info=True)
+            except RedisError as exc:
+                log_redis_error("analytics stream read failed", exc)
                 time.sleep(1)
                 continue
 
@@ -127,8 +128,8 @@ class AnalyticsWorker:
             return
         try:
             self._redis.xack(self._stream, self._group, *entry_ids)
-        except RedisError:
-            logger.warning("failed to ack analytics events", exc_info=True)
+        except RedisError as exc:
+            log_redis_error("failed to ack analytics events", exc)
 
     def process_entries(self, entries: Iterable[tuple[str, dict[str, str]]]) -> int:
         events = [parsed for _, fields in entries if (parsed := self._parse(fields)) is not None]

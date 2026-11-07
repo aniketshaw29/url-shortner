@@ -6,6 +6,8 @@ from typing import Any
 from redis import Redis
 from redis.exceptions import RedisError
 
+from app.redis_log import log_redis_error
+
 logger = logging.getLogger(__name__)
 
 LINK_KEY = "link:{code}"
@@ -20,8 +22,10 @@ def get_cached_link(redis_client: Redis, code: str) -> tuple[bool, dict[str, Any
             return True, json.loads(raw)
         if redis_client.exists(MISS_KEY.format(code=code)):
             return True, None
-    except (RedisError, json.JSONDecodeError):
-        logger.warning("cache read failed", exc_info=True)
+    except RedisError as exc:
+        log_redis_error("cache read failed", exc)
+    except json.JSONDecodeError:
+        logger.warning("cache payload invalid", exc_info=True)
     return False, None
 
 
@@ -31,19 +35,19 @@ def set_cached_link(
     try:
         ttl = ttl_seconds + random.randint(0, 300)
         redis_client.set(LINK_KEY.format(code=code), json.dumps(payload), ex=ttl)
-    except RedisError:
-        logger.warning("cache write failed", exc_info=True)
+    except RedisError as exc:
+        log_redis_error("cache write failed", exc)
 
 
 def set_negative_cache(redis_client: Redis, code: str) -> None:
     try:
         redis_client.set(MISS_KEY.format(code=code), "1", ex=NEGATIVE_TTL_SECONDS)
-    except RedisError:
-        logger.warning("negative cache write failed", exc_info=True)
+    except RedisError as exc:
+        log_redis_error("negative cache write failed", exc)
 
 
 def invalidate_link(redis_client: Redis, code: str) -> None:
     try:
         redis_client.delete(LINK_KEY.format(code=code), MISS_KEY.format(code=code))
-    except RedisError:
-        logger.warning("cache invalidation failed", exc_info=True)
+    except RedisError as exc:
+        log_redis_error("cache invalidation failed", exc)

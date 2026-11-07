@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from redis import Redis
 from redis.exceptions import RedisError
 
+from app.redis_log import log_redis_error
+
 logger = logging.getLogger(__name__)
 
 
@@ -31,8 +33,8 @@ def check_rate_limit(
             remaining=max(0, limit - current),
             reset_seconds=int(ttl),
         )
-    except RedisError:
-        logger.warning("rate limiter unavailable; failing open", exc_info=True)
+    except RedisError as exc:
+        log_redis_error("rate limiter unavailable; failing open", exc)
         return RateLimitResult(
             allowed=True, limit=limit, remaining=limit, reset_seconds=window_seconds
         )

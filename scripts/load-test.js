@@ -3,10 +3,17 @@ import { check } from "k6";
 
 const baseUrl = __ENV.BASE_URL || "http://127.0.0.1:8000";
 const code = __ENV.CODE;
+const codesFile = __ENV.CODES_FILE;
 
-if (!code) {
-  throw new Error("CODE is required, for example: CODE=abc123 k6 run scripts/load-test.js");
+if (!code && !codesFile) {
+  throw new Error(
+    "CODE or CODES_FILE is required, for example: CODE=abc123 k6 run scripts/load-test.js",
+  );
 }
+
+const codes = codesFile
+  ? open(codesFile).split(/\r?\n/).filter(Boolean)
+  : [code];
 
 export const options = {
   scenarios: {
@@ -27,7 +34,11 @@ export const options = {
 };
 
 export default function () {
-  const response = http.get(`${baseUrl}/${code}`, { redirects: 0 });
+  const target = codes[Math.floor(Math.random() * codes.length)];
+  const response = http.get(`${baseUrl}/${target}`, {
+    redirects: 0,
+    tags: { name: "redirect" },
+  });
   check(response, {
     "status is 302": (result) => result.status === 302,
     "location is present": (result) => Boolean(result.headers.Location),
