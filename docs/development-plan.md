@@ -100,9 +100,11 @@ Exit: all Must/Should requirements pass automated acceptance tests in CI.
 - [x] Redis cache-aside with jitter and negative caching
 - [ ] Single-flight cache fill; stampede test
 - [x] Metrics: cache hit ratio, redirect outcomes, HTTP p50/p99, error rate
-- [ ] SQLite read and `SQLITE_BUSY` metrics
+- [ ] SQLite read metrics
+- [x] `SQLITE_BUSY` metric
 - [x] k6 warm-cache smoke: 200 RPS × 60s, p99 9.84ms, 0 errors
-- [ ] k6 soak: 200 RPS × 15 minutes, mixed 100:1
+- [x] k6 redirect soak: 200 RPS × 15 minutes, p99 6.09ms, 0 errors
+- [ ] k6 mixed create/redirect soak (100:1)
 - [x] Cold-cache baseline: 97.2% miss, p99 11.2ms
 - [x] Before/after numbers in the learning log
 
@@ -122,6 +124,7 @@ Goal: run it like a small production service.
 - [ ] Host hardening: UFW, SSH keys, fail2ban, unattended upgrades, swap
 - [ ] Idempotent deploy script; backup before migration
 - [x] Redis outage drill: 200 RPS, p99 2.29ms, 0 errors, analytics dropped
+- [x] Cache invalidation replay after Redis recovery; regression test added
 - [ ] Remaining failure drills: API restart, restore to a new host, rollback
 - [ ] Uptime probe and basic alerts
 

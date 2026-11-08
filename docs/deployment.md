@@ -281,6 +281,7 @@ Metrics (Prometheus at `/metrics`; scrape `api:8000` internally and block `/metr
 - `shortener_cache_operations_total{result}` for hit/miss/negative/error/skipped
 - `shortener_redirects_total{outcome}`
 - `shortener_analytics_stream_pending` and `shortener_analytics_stream_length`
+- `shortener_sqlite_busy_total` for `database is locked` errors
 - SQLite `SQLITE_BUSY` count, WAL size, DB file size (not yet instrumented)
 - Litestream replication lag, last successful sync
 - Process CPU/RAM, disk usage, load average

@@ -32,7 +32,7 @@
 - Concurrent creates never produce duplicate codes; `UNIQUE` conflicts are retried and eventually surface as `500`.
 - Custom alias conflict returns `409`, not `500`.
 - Expired link returns `410`; deleted link returns `410`; unknown returns `404`.
-- Cache invalidation on delete; a stale cache entry cannot resurrect a link.
+- Cache invalidation on delete; a stale cache entry cannot resurrect a link, including after a Redis outage and recovery.
 - Rate limiter returns `429` with `RateLimit-*` and `Retry-After` headers.
 - WAL + `busy_timeout`: parallel writers wait and succeed rather than returning `SQLITE_BUSY`.
 - A long-running read does not block writes (WAL behavior); WAL size returns to normal after checkpoints.

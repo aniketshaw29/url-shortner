@@ -34,3 +34,8 @@ ANALYTICS_STREAM_LENGTH = Gauge(
     "shortener_analytics_stream_length",
     "Total analytics stream entries",
 )
+
+SQLITE_BUSY = Counter(
+    "shortener_sqlite_busy_total",
+    "SQLite database-is-locked errors",
+)

@@ -157,6 +157,34 @@ One entry per phase or significant decision. Keep it short and numeric.
 
 **Measurement after the fix:** At 200 RPS for 30s, 6,001 requests, 0 errors, p50 1.11ms, p95 1.67ms, p99 2.29ms, max 14.05ms. Only 11 warnings for the whole outage; `readyz` was `503`; service recovered to `200` after Redis restarted.
 
-**Tradeoff:** Cache invalidation is skipped during an outage, so a link deleted then could remain in Redis until TTL after recovery. Click events during the outage are dropped; there is no persistent buffer.
+**Tradeoff:** Cache invalidation was skipped during an outage, so a link deleted then could remain in Redis until TTL after recovery. Click events during the outage are dropped; there is no persistent buffer.
 
 **Next question:** Do we need cache generation/versioning or flush-on-recovery to prevent stale entries, and a durable buffer for analytics?
+
+## 008 — 2026-11-08 — Cache invalidation recovery
+
+**Question:** How do we stop a link deleted during a Redis outage from resurfacing after Redis returns?
+
+**Options considered:**
+
+- Cache generation/versioning: change the key namespace on recovery. Strong, but adds a generation lookup or per-worker namespace, and multi-worker sharing gets awkward.
+- Flush every `link:*` key on recovery: simple and correct, but expensive with a large cache.
+- Replay pending invalidations: remember codes deleted while Redis was unavailable; on recovery delete just those keys.
+
+**Decision:** Queue invalidations in process while the circuit is open or a delete fails. On the first successful Redis call after recovery, flush the queued keys and force that cache read to fall through to SQLite. The request then re-caches the current database state.
+
+**Tradeoff:** The pending set lives in process memory; a crash before replay can still leave stale keys until TTL. A shared cache-generation scheme would cover that, at the cost of more Redis coordination. Analytics events are still dropped during an outage.
+
+**Test:** `test_deleted_link_does_not_resurrect_after_redis_recovery` deletes a cached link through a broken Redis client, restores Redis, and asserts the next redirect is `410`, not a stale `302`.
+
+## 009 — 2026-11-08 — 15-minute soak
+
+**Question:** Does 200 RPS stay healthy for 15 minutes, or do cache, SQLite, or the analytics worker degrade over time?
+
+**Context:** One warmed link, one IP, redirect limit raised, 200 RPS × 15 minutes via k6.
+
+**Measurement:** 180,000 requests, 0 failed, p50 1.8ms, p95 2.67ms, p99 6.09ms, max 133.01ms. Cache: 180,000 hits and 1 miss (100% after warm-up). Redirects: 180,001 `302`. Analytics stream trimmed at 100,006 entries, pending 0 at the end. `SQLITE_BUSY` 0. The worker kept up; SQLite grew to 21.3MB and 197,463 total raw clicks including earlier test data.
+
+**Interpretation:** No latency drift, no error-rate drift, and no write contention under a steady warm read load. The p99 was lower than the 60s warm run, so the earlier `9.84ms` was not a floor. The analytics stream bound worked as intended: length stopped at 100k while pending stayed at 0.
+
+**Next question:** What happens on API restart and on restore/rollback, and how do metrics behave with more than one Uvicorn worker?

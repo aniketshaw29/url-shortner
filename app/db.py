@@ -1,10 +1,14 @@
+import sqlite3
 from collections.abc import Iterator
 from pathlib import Path
 
 from fastapi import Request
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
+from sqlalchemy.engine.interfaces import ExceptionContext
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+
+from app.metrics import SQLITE_BUSY
 
 
 class Base(DeclarativeBase):
@@ -18,6 +22,12 @@ def _ensure_sqlite_directory(database_url: str) -> None:
     path.resolve().parent.mkdir(parents=True, exist_ok=True)
 
 
+def count_sqlite_busy(exception_context: ExceptionContext) -> None:
+    exc = exception_context.original_exception
+    if isinstance(exc, sqlite3.OperationalError) and "database is locked" in str(exc):
+        SQLITE_BUSY.inc()
+
+
 def create_db_engine(database_url: str) -> Engine:
     _ensure_sqlite_directory(database_url)
     engine = create_engine(
@@ -27,6 +37,7 @@ def create_db_engine(database_url: str) -> Engine:
     )
 
     if engine.dialect.name == "sqlite":
+        event.listen(engine, "handle_error", count_sqlite_busy)
 
         @event.listens_for(engine, "connect")
         def set_sqlite_pragmas(dbapi_connection: object, _connection_record: object) -> None:

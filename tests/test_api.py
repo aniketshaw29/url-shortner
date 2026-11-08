@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from redis.exceptions import RedisError
 from sqlalchemy import select
 
+from app import redis_state
 from app.db import Base
 from app.main import create_app
 from app.models import Link, LinkDailyStat, LinkReferrerDailyStat
@@ -140,6 +141,29 @@ def test_delete_is_idempotent_and_invalidates_cache(
     assert application.state.redis.get(f"link:{code}") is None
     assert client.get(f"/{code}", follow_redirects=False).status_code == 410
     assert client.delete(f"/api/v1/links/{code}", headers=auth_headers).status_code == 204
+
+
+def test_deleted_link_does_not_resurrect_after_redis_recovery(
+    client: TestClient, application, auth_headers: dict[str, str]
+) -> None:
+    created = _create(client, auth_headers, custom_alias="recover-me").json()
+    code = created["code"]
+
+    assert client.get(f"/{code}", follow_redirects=False).status_code == 302
+    assert application.state.redis.get(f"link:{code}") is not None
+
+    healthy_redis = application.state.redis
+    application.state.redis = BrokenRedis()
+    assert client.delete(f"/api/v1/links/{code}", headers=auth_headers).status_code == 204
+
+    application.state.redis = healthy_redis
+    redis_state.record_redis_success()
+
+    response = client.get(f"/{code}", follow_redirects=False)
+    cached = application.state.redis.get(f"link:{code}")
+    assert response.status_code == 410
+    assert cached is not None
+    assert '"status": "deleted"' in cached
 
 
 def test_metadata_and_list(client: TestClient, auth_headers: dict[str, str]) -> None:

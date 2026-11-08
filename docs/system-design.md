@@ -82,7 +82,7 @@ In Phase 3, allow opt-in `Cache-Control: public, max-age=60, s-maxage=300` for l
 - Pattern: cache-aside with key `link:{code}` and value `{long_url, status, expires_at}`.
 - TTL: 1 hour + random jitter.
 - Negative cache: `link:miss:{code}` for 30–60s to absorb scans.
-- Invalidation: delete on deactivate; expiry is checked on every read, so stale entries cannot extend a link's life.
+- Invalidation: delete on deactivate; invalidations during a Redis outage are queued and replayed on recovery. Expiry is checked on every read, so stale entries cannot extend a link's life.
 - Stampede protection: per-key single-flight and a cap on concurrent fills.
 - Redis is disposable: disable persistence; on restart, the cache warms from SQLite.
 
