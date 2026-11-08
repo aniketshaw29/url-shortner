@@ -5,6 +5,14 @@ from fastapi.testclient import TestClient
 from app.config import Settings
 from app.db import Base
 from app.main import create_app
+from app.redis_state import reset_redis_state
+
+
+@pytest.fixture(autouse=True)
+def reset_redis_circuit():
+    reset_redis_state()
+    yield
+    reset_redis_state()
 
 
 @pytest.fixture()

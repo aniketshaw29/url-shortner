@@ -10,6 +10,7 @@ from app.cache import get_cached_link, set_cached_link, set_negative_cache
 from app.codes import REDIRECT_CODE_PATTERN
 from app.db import get_db
 from app.errors import APIError
+from app.metrics import REDIRECTS
 from app.models import Link
 from app.rate_limit import check_rate_limit, rate_limit_headers
 from app.security import get_client_ip, hash_ip
@@ -39,16 +40,19 @@ def redirect_to_url(
         settings.rate_limit_redirect_per_minute,
     )
     if not rate.allowed:
+        REDIRECTS.labels(outcome="rate_limited").inc()
         headers = rate_limit_headers(rate)
         headers["Retry-After"] = str(rate.reset_seconds)
         raise APIError(429, "rate_limited", "Too many requests", headers=headers)
 
     if not REDIRECT_CODE_PATTERN.fullmatch(code):
+        REDIRECTS.labels(outcome="not_found").inc()
         raise APIError(404, "not_found", "Short code does not exist")
 
     cache_hit, payload = get_cached_link(redis_client, code)
     if cache_hit:
         if payload is None:
+            REDIRECTS.labels(outcome="not_found").inc()
             raise APIError(404, "not_found", "Short code does not exist")
         link_id = int(payload["link_id"])
         long_url = str(payload["long_url"])
@@ -58,6 +62,7 @@ def redirect_to_url(
         link = db.scalar(select(Link).where(Link.code == code))
         if link is None:
             set_negative_cache(redis_client, code)
+            REDIRECTS.labels(outcome="not_found").inc()
             raise APIError(404, "not_found", "Short code does not exist")
 
         link_id = link.id
@@ -77,6 +82,7 @@ def redirect_to_url(
         )
 
     if not _is_usable(status, expires_at):
+        REDIRECTS.labels(outcome="gone").inc()
         raise APIError(410, "gone", "This link is no longer available")
 
     publish_click(
@@ -90,6 +96,7 @@ def redirect_to_url(
     )
 
     headers = {"Cache-Control": "no-store", **rate_limit_headers(rate)}
+    REDIRECTS.labels(outcome="ok").inc()
     return RedirectResponse(url=long_url, status_code=302, headers=headers)
 
 

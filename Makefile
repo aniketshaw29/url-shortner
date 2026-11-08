@@ -1,4 +1,4 @@
-.PHONY: setup redis-up redis-down db-init db-reset run run-load load test lint fmt smoke clean
+.PHONY: setup redis-up redis-down redis-flush db-init db-reset run run-load load test lint fmt smoke clean
 
 setup:
 	uv sync
@@ -20,10 +20,13 @@ redis-down:
 		docker compose stop redis; \
 	fi
 
+redis-flush:
+	bash scripts/flush-local-state.sh
+
 db-init:
 	uv run alembic upgrade head
 
-db-reset:
+db-reset: redis-flush
 	rm -f data/app.db data/app.db-wal data/app.db-shm
 	uv run alembic upgrade head
 

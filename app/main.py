@@ -4,9 +4,10 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from uuid import uuid4
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from redis import Redis
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -15,6 +16,7 @@ from app.api import health, links, redirect
 from app.config import Settings, get_settings
 from app.db import create_db_engine, create_session_factory
 from app.errors import APIError
+from app.metrics import HTTP_DURATION, HTTP_REQUESTS
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +73,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         started = time.perf_counter()
         response = await call_next(request)
         duration_ms = (time.perf_counter() - started) * 1000
+        route = request.scope.get("route")
+        route_path = getattr(route, "path", "unmatched")
+        HTTP_REQUESTS.labels(request.method, route_path, str(response.status_code)).inc()
+        HTTP_DURATION.labels(request.method, route_path).observe(duration_ms / 1000)
         response.headers["X-Request-ID"] = request_id
         logger.info(
             "%s %s %s %.1fms %s",
@@ -133,6 +139,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             },
             headers=exc.headers,
         )
+
+    @app.get("/metrics", include_in_schema=False)
+    def metrics() -> Response:
+        return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
     app.include_router(health.router)
     app.include_router(links.router)

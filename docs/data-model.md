@@ -169,7 +169,7 @@ CREATE TABLE link_referrer_daily_stats (
 | `ratelimit:{scope}:{id}` | counter; `id` is a hashed API key or salted IP | window |
 | `events:clicks` | Redis Stream of click events | trimmed by length |
 
-Redis is disposable. Disable persistence (`--save "" --appendonly no`); a restart only causes a cold cache.
+Redis is disposable. Disable persistence (`--save "" --appendonly no`); a restart only causes a cold cache. During a Redis outage, cache writes and invalidation are skipped: redirects fall back to SQLite, but a link deleted during the outage may remain stale in Redis until its TTL expires. A future cache-generation scheme should remove that window.
 
 ## 6. Retention
 

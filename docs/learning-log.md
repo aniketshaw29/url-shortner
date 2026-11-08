@@ -126,3 +126,37 @@ One entry per phase or significant decision. Keep it short and numeric.
 **What surprised me:** The rate limiter is the first bottleneck for a single-IP load test, not SQLite or Redis. The redirect path stayed under 10ms p99 once that was out of the way.
 
 **Next question:** What does p99 look like with a cold cache and with Redis unavailable, and how do we measure cache hit ratio cleanly?
+
+## 006 — 2026-11-07 — Cold-cache 200 RPS baseline
+
+**Question:** How much does SQLite cost when nearly every redirect misses Redis?
+
+**Context:** Seeded 200,000 active links directly into SQLite, flushed their cache, then sent 12,000 requests at 200 RPS for 60s from one IP with the redirect limiter raised.
+
+**Measurement:** 11,665 unique codes were cached, so the run was ~97.2% cache miss / 2.8% hit. p50 2.82ms, p95 4.10ms, p99 11.20ms, max 115.41ms; 0 errors. All 12,000 clicks rolled up; no `500`s and no `SQLITE_BUSY`.
+
+**What surprised me:** Cold-cache p99 was only ~1.4ms worse than warm. SQLite WAL reads at 200 RPS were not the bottleneck.
+
+**Next question:** What happens when Redis disappears entirely?
+
+## 007 — 2026-11-07 — Redis outage drill
+
+**Question:** Do redirects survive Redis loss, and what is the latency and operational blast radius?
+
+**Context:** Stopped local Redis while the API was running; 200 RPS for 30s from one IP with the redirect limiter raised.
+
+**Options considered:**
+
+- Fail closed: return `503` for redirects. Simple, but takes the product down for a disposable cache.
+- Fail open to SQLite: keep redirects working, drop analytics, disable cache and rate limits.
+- Keep retrying Redis per request: correct in theory, but the first drill showed a log storm and 477ms p99.
+
+**Decision:** Fail open with a process-local circuit breaker: open for 5s after a Redis error, then allow one half-open probe; cache, rate-limit, and analytics calls skip Redis while open. `/readyz` still probes Redis and returns `503`.
+
+**Measurement before the fix:** At 50 RPS for 10s, redirects returned `302` and p99 was 15.8ms, but traceback logging added ~92k log lines (~184 per request). A follow-up 200 RPS run without the breaker hit p99 477ms.
+
+**Measurement after the fix:** At 200 RPS for 30s, 6,001 requests, 0 errors, p50 1.11ms, p95 1.67ms, p99 2.29ms, max 14.05ms. Only 11 warnings for the whole outage; `readyz` was `503`; service recovered to `200` after Redis restarted.
+
+**Tradeoff:** Cache invalidation is skipped during an outage, so a link deleted then could remain in Redis until TTL after recovery. Click events during the outage are dropped; there is no persistent buffer.
+
+**Next question:** Do we need cache generation/versioning or flush-on-recovery to prevent stale entries, and a durable buffer for analytics?

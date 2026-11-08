@@ -2,12 +2,37 @@ from datetime import UTC, datetime, timedelta
 
 import fakeredis
 from fastapi.testclient import TestClient
+from redis.exceptions import RedisError
 from sqlalchemy import select
 
 from app.db import Base
 from app.main import create_app
 from app.models import Link, LinkDailyStat, LinkReferrerDailyStat
 from app.timeutils import utc_now_ts
+
+
+class BrokenRedis:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def incr(self, *_args, **_kwargs):
+        self.calls += 1
+        raise RedisError("redis down")
+
+    def get(self, *_args, **_kwargs):
+        raise RedisError("redis down")
+
+    def exists(self, *_args, **_kwargs):
+        raise RedisError("redis down")
+
+    def set(self, *_args, **_kwargs):
+        raise RedisError("redis down")
+
+    def delete(self, *_args, **_kwargs):
+        raise RedisError("redis down")
+
+    def xadd(self, *_args, **_kwargs):
+        raise RedisError("redis down")
 
 
 def _create(client: TestClient, headers: dict[str, str], **payload):
@@ -40,6 +65,21 @@ def test_redirect_rate_limit_key_hashes_ip(
     assert keys
     assert all("testclient" not in key for key in keys)
     assert all("127.0.0.1" not in key for key in keys)
+
+
+def test_redirect_survives_redis_outage(
+    client: TestClient, application, auth_headers: dict[str, str]
+) -> None:
+    created = _create(client, auth_headers).json()
+    broken = BrokenRedis()
+    application.state.redis = broken
+
+    first = client.get(f"/{created['code']}", follow_redirects=False)
+    second = client.get(f"/{created['code']}", follow_redirects=False)
+
+    assert first.status_code == 302
+    assert second.status_code == 302
+    assert broken.calls == 1
 
 
 def test_create_requires_api_key(client: TestClient) -> None:
@@ -159,6 +199,18 @@ def test_rate_limit(settings) -> None:
     assert second.status_code == 429
     assert second.json()["error"]["code"] == "rate_limited"
     assert "Retry-After" in second.headers
+
+
+def test_metrics_endpoint(client: TestClient, auth_headers: dict[str, str]) -> None:
+    created = _create(client, auth_headers).json()
+    client.get(f"/{created['code']}", follow_redirects=False)
+
+    response = client.get("/metrics")
+
+    assert response.status_code == 200
+    assert "shortener_http_requests_total" in response.text
+    assert "shortener_cache_operations_total" in response.text
+    assert "shortener_redirects_total" in response.text
 
 
 def test_redirect_rate_limit(settings, auth_headers: dict[str, str]) -> None:

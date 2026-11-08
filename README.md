@@ -4,7 +4,7 @@ A URL shortener built as a hands-on system design learning project. The goal is 
 
 ## Status
 
-Local v1 is running: create, redirect, cache-aside, rate limits, analytics worker, and stats. Deployment artifacts (Dockerfile, CI/CD, Litestream) are still Phase 4 work.
+Local v1 is running: create, redirect, cache-aside, rate limits, Redis circuit breaker, analytics worker, stats, and Prometheus metrics. Deployment artifacts (Dockerfile, CI/CD, Litestream) are still Phase 4 work.
 
 ## Stack
 
@@ -13,6 +13,7 @@ Local v1 is running: create, redirect, cache-aside, rate limits, analytics worke
 - **Database:** SQLite (WAL mode) via SQLAlchemy 2.0 + Alembic
 - **Cache / rate limits:** Redis 7
 - **Deployment:** single Linux VPS, Docker Compose, Caddy (TLS), Litestream backups
+- **Observability:** Prometheus metrics at `/metrics`
 - **Quality:** pytest, ruff, mypy, k6
 
 ## Documentation
@@ -72,7 +73,9 @@ Local resources:
 - API key: `dev-api-key` from `.env`
 - Analytics: click events flow through the `events:clicks` Redis Stream
 
-Useful commands: `make test`, `make lint`, `make fmt`, `make db-reset`.
+Useful commands: `make test`, `make lint`, `make fmt`, `make db-reset` (stop the API first; it clears SQLite and local Redis keys).
+
+Prometheus metrics are exposed at `http://localhost:8000/metrics`; block this endpoint at the proxy in production.
 
 For a 200 RPS redirect baseline, start the API with the redirect limiter raised, then run k6 in another terminal:
 

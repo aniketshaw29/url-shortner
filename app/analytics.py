@@ -11,8 +11,10 @@ from redis.exceptions import RedisError, ResponseError
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.metrics import ANALYTICS_PENDING, ANALYTICS_STREAM_LENGTH
 from app.models import Click, LinkDailyStat, LinkReferrerDailyStat
 from app.redis_log import log_redis_error
+from app.redis_state import allow_redis_call, record_redis_failure, record_redis_success
 from app.timeutils import day_string
 
 logger = logging.getLogger(__name__)
@@ -33,6 +35,8 @@ def publish_click(
     user_agent: str | None,
     referrer: str | None,
 ) -> None:
+    if not allow_redis_call():
+        return
     try:
         redis_client.xadd(
             stream,
@@ -47,7 +51,10 @@ def publish_click(
             approximate=True,
         )
     except RedisError as exc:
+        record_redis_failure()
         log_redis_error("failed to publish click event", exc)
+    else:
+        record_redis_success()
 
 
 class AnalyticsWorker:
@@ -79,14 +86,23 @@ class AnalyticsWorker:
 
     def _run(self) -> None:
         while not self._stop.is_set():
+            if not allow_redis_call():
+                time.sleep(1)
+                continue
             try:
                 self._ensure_group()
-                break
             except RedisError as exc:
+                record_redis_failure()
                 log_redis_error("analytics group setup failed; retrying", exc)
                 time.sleep(1)
+            else:
+                record_redis_success()
+                break
 
         while not self._stop.is_set():
+            if not allow_redis_call():
+                time.sleep(1)
+                continue
             try:
                 response = cast(
                     list[tuple[str, list[tuple[str, dict[str, str]]]]],
@@ -99,9 +115,12 @@ class AnalyticsWorker:
                     ),
                 )
             except RedisError as exc:
+                record_redis_failure()
                 log_redis_error("analytics stream read failed", exc)
                 time.sleep(1)
                 continue
+            record_redis_success()
+            self._update_metrics()
 
             if not response:
                 continue
@@ -115,6 +134,15 @@ class AnalyticsWorker:
                 else:
                     self._ack(entries)
 
+    def _update_metrics(self) -> None:
+        try:
+            pending = self._redis.xpending(self._stream, self._group)
+            if isinstance(pending, dict):
+                ANALYTICS_PENDING.set(int(pending.get("pending", 0)))
+            ANALYTICS_STREAM_LENGTH.set(int(self._redis.xlen(self._stream)))
+        except RedisError as exc:
+            log_redis_error("analytics metrics update failed", exc)
+
     def _ensure_group(self) -> None:
         try:
             self._redis.xgroup_create(self._stream, self._group, id="0", mkstream=True)
@@ -126,10 +154,15 @@ class AnalyticsWorker:
         entry_ids = [entry_id for entry_id, _ in entries]
         if not entry_ids:
             return
+        if not allow_redis_call():
+            return
         try:
             self._redis.xack(self._stream, self._group, *entry_ids)
         except RedisError as exc:
+            record_redis_failure()
             log_redis_error("failed to ack analytics events", exc)
+        else:
+            record_redis_success()
 
     def process_entries(self, entries: Iterable[tuple[str, dict[str, str]]]) -> int:
         events = [parsed for _, fields in entries if (parsed := self._parse(fields)) is not None]

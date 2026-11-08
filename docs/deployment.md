@@ -201,6 +201,9 @@ s.example.com {
         -Server
     }
 
+    @metrics path /metrics
+    respond @metrics 404
+
     reverse_proxy api:8000
 
     log {
@@ -272,13 +275,17 @@ Staging uses separate buckets/prefixes and API keys. Never restore production da
 
 ## 12. Observability and alerting
 
-Metrics (Prometheus format via `prometheus-fastapi-instrumentator` + `node_exporter`):
+Metrics (Prometheus at `/metrics`; scrape `api:8000` internally and block `/metrics` at Caddy):
 
-- `http_requests_total{route,status}`, latency histogram (p50/p95/p99)
-- Cache hit ratio, Redis errors
-- SQLite `SQLITE_BUSY` count, WAL size, DB file size
+- `shortener_http_requests_total{method,route,status}` and `shortener_http_request_duration_seconds`
+- `shortener_cache_operations_total{result}` for hit/miss/negative/error/skipped
+- `shortener_redirects_total{outcome}`
+- `shortener_analytics_stream_pending` and `shortener_analytics_stream_length`
+- SQLite `SQLITE_BUSY` count, WAL size, DB file size (not yet instrumented)
 - Litestream replication lag, last successful sync
 - Process CPU/RAM, disk usage, load average
+
+Metrics are in-process today. With 2 Uvicorn workers, enable `prometheus-client` multiprocess mode or scrape each worker separately.
 
 Logs:
 
